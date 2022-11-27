@@ -1,0 +1,43 @@
+name: "Apk Signer"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - name: Set current date as env variable
+        run: echo "date_now=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+      - name: Download Stored base APKs
+        uses: robinraju/release-downloader@v1.6
+        with:
+          repository: ${{ github.repository }}
+          tag: 'base'
+          fileName: "*"
+          out-file-path: "build"
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sign APK
+        id: sign_apk
+        uses: ilharp/sign-android-release@v1
+        with:
+          releaseDir: build
+          signingKey: ${{ secrets.SIGNING_KEYSTORE }}
+          keyStorePassword: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          keyAlias: ${{ secrets.SIGNING_KEY_ALIAS }}
+          keyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+      - name: Add version to APK
+        run: mv ${{steps.sign_apk.outputs.signedFile}} app-signed.apk
+      - uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "${{ env.date_now }}"
+          prerelease: false
+          title: "${{ env.date_now }}"
+          files: app-signed.apk
